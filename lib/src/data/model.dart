@@ -1,8 +1,14 @@
+import 'package:blendberry_flutter_sdk/src/data/config_data.dart';
 import 'package:blendberry_flutter_sdk/src/data/serializable.dart';
 import 'package:meta/meta.dart';
 
 /// Represents a remote configuration model fetched from or persisted to
 /// the remote config API.
+///
+/// This is an example implementation of [ConfigData] that follows a common
+/// pattern with appId, environment, version, and last modification date.
+/// You can use this as-is or create your own [ConfigData] implementation
+/// to match your backend's format.
 ///
 /// This model includes configuration metadata such as environment,
 /// version, and last modification date, as well as the actual configuration
@@ -10,7 +16,7 @@ import 'package:meta/meta.dart';
 ///
 /// It is also responsible for (de)serialization and basic transformation.
 @immutable
-class RemoteConfigModel implements Serializable {
+class RemoteConfigModel implements ConfigData, Serializable {
   /// Unique identifier for the app this config belongs to.
   final String appId;
 
@@ -65,24 +71,34 @@ class RemoteConfigModel implements Serializable {
     };
   }
 
-  /// Extracts only the metadata from this configuration into a separate object.
-  RemoteConfigMetadata extractMetadata() => RemoteConfigMetadata(
+  /// Returns only the configuration values.
+  @override
+  Map<String, dynamic> extractConfigs() => configs;
+
+  /// Implements [ConfigData.extractMetadata] to return [RemoteConfigMetadata].
+  ///
+  /// Extracts the metadata from this configuration into a separate object
+  /// that can be used for sync checking.
+  @override
+  ConfigMetadata? extractMetadata() => RemoteConfigMetadata(
     appId: appId,
     env: env,
     version: version,
     lastModDate: lastModDate,
   );
-
-  /// Returns only the configuration values.
-  Map<String, dynamic> extractConfigs() => configs;
 }
 
 /// Represents the metadata portion of a remote configuration.
 ///
+/// This is an example implementation of [ConfigMetadata] that uses
+/// a combination of version and last modification date as the sync identifier.
+/// You can use this as-is or create your own [ConfigMetadata] implementation
+/// to match your backend's sync strategy.
+///
 /// Useful for version checks or shallow comparison without loading
 /// the full configuration set.
 @immutable
-class RemoteConfigMetadata {
+class RemoteConfigMetadata implements ConfigMetadata {
   final String appId;
   final String env;
   final String version;
@@ -95,4 +111,11 @@ class RemoteConfigMetadata {
     required this.version,
     required this.lastModDate,
   });
+
+  /// Returns a sync identifier combining version and last modification date.
+  ///
+  /// This format allows the SDK to check if the configuration has changed
+  /// by comparing this identifier with the remote one.
+  @override
+  String get syncIdentifier => '$version-${lastModDate.toUtc().toIso8601String()}';
 }

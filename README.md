@@ -1,79 +1,109 @@
+# BlendBerry Flutter SDK
+
+A **completely abstract and configurable** Flutter SDK for managing remote configurations. Works with **any backend** - you implement the interfaces to match your backend's API.
+
 ---
 
 ## Overview
 
-BlendBerry is a flexible remote configuration system that allows mobile applications to fetch and update configurations dynamically from a backend service. It simplifies the process of managing app configurations, enabling teams to adjust app behavior, UI themes, features, and more remotely.
+BlendBerry Flutter SDK is a flexible, backend-agnostic remote configuration system that allows mobile applications to fetch and update configurations dynamically from any backend service. The SDK provides a clean architecture with complete abstraction - you implement the interfaces to match your specific backend format.
+
+**Key Philosophy**: The SDK only orchestrates. You implement how it communicates with your backend.
+
+---
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Key Features](#key-features)
+- [Features](#features)
 - [Architecture](#architecture)
 - [Installation](#installation)
-- [Usage](#usage)
-- [Example App](#example-app)
+- [Quick Start](#quick-start)
+- [Core Concepts](#core-concepts)
+- [Implementing Your Backend](#implementing-your-backend)
+- [Examples](#examples)
 - [API Reference](#api-reference)
 - [Contributing](#contributing)
 - [License](#license)
 
 ---
 
-# BlendBerry SDK for Flutter
+## Features
 
-The **BlendBerry SDK for Flutter** provides a simple and efficient way to fetch and store remote configurations 
-locally in your app. It integrates with the **BlendBerry Backend API** and allows automatic synchronization of 
-configurations between the app and the backend server.
-
-- **Remote Configurations**: Fetch configurations based on app environment and version.
-- **Local Storage**: Cache configurations locally using any storage delegate implementation for offline usage.
-- **Efficient Sync**: Automatically checks for updates and fetches new configurations when necessary.
-
----
-
-## Key Features
-
-- **Automatic Configuration Sync**: Fetch the latest configurations or use cached data if up-to-date.
-- **Flexible Configuration Storage**: Store and manage configurations locally in an organized way.
-- **Environment & Version Support**: Allows fetching configurations based on the environment and version.
-- **Easy Integration**: Integrates seamlessly with existing Flutter projects.
-- **Customizable Configurations**: Supports various configuration types (e.g., theme, feature flags, user settings).
+- ✅ **Backend Agnostic**: Works with any backend (REST, GraphQL, gRPC, Firebase, etc.)
+- ✅ **Completely Abstract**: No assumptions about your backend format
+- ✅ **Flexible Sync**: Customizable sync strategies (version-based, ETag, timestamp, etc.)
+- ✅ **Multiple Load Modes**: `localOnly`, `remoteOnly`, or `hybrid` (default)
+- ✅ **Offline Support**: Local caching with automatic sync
+- ✅ **Type-Safe**: Generic mappers for type-safe configuration access
+- ✅ **Logging**: Optional logging system for debugging
+- ✅ **Error Handling**: Comprehensive exception handling
+- ✅ **Builder Pattern**: Fluent API for easy configuration
 
 ---
 
 ## Architecture
 
-The SDK follows a clean architecture structure that divides the app's functionality into layers:
+The SDK follows a clean architecture with complete abstraction:
 
-- **Data Layer**: Handles remote fetching and local storage of configurations.
-- **Domain Layer**: Contains business logic and maps data to relevant entities.
-- **Presentation Layer**: Dispatches configurations to relevant parts of the application.
+```
+┌─────────────────────────────────────────┐
+│     Your Application Code               │
+│  (Uses RemoteConfig via Mappers)        │
+└──────────────┬──────────────────────────┘
+               │
+┌──────────────▼──────────────────────────┐
+│     Presentation Layer                   │
+│  - RemoteConfigMediator (orchestrator)  │
+│  - RemoteConfigBuilder (configuration)  │
+└──────────────┬──────────────────────────┘
+               │
+┌──────────────▼──────────────────────────┐
+│     Domain Layer                        │
+│  - RemoteConfigService (abstract)      │
+│  - SyncStrategy (abstract, optional)   │
+│  - RemoteConfigMapper (your mappers)   │
+└──────────────┬──────────────────────────┘
+               │
+┌──────────────▼──────────────────────────┐
+│     Data Layer                          │
+│  - ConfigData (abstract)                │
+│  - ConfigMetadata (abstract)            │
+│  - LocalConfigRepository (abstract)     │
+└─────────────────────────────────────────┘
+```
 
-Here’s a simple flow of how configurations are managed:
+### What You Implement
 
-1. **Local Config Check**: Check if there is a locally stored configuration.
-2. **Remote Config Lookup**: If no local data, fetch configurations from the backend.
-3. **Sync Check**: Check if the local configuration is up-to-date with the backend using versioning.
-4. **Save and Use Configurations**: If an update is available, fetch the new configuration and store it locally for future use.
+1. **`RemoteConfigService`**: How to fetch from your backend
+2. **`ConfigData`**: Your backend's response format
+3. **`ConfigMetadata`**: How to identify/config versions
+4. **`LocalConfigRepository`**: How to store locally
+5. **`RemoteConfigMapper`**: How to map to your domain objects
+
+### What the SDK Provides
+
+- Orchestration logic (mediator)
+- Sync checking strategies
+- Caching and offline support
+- Error handling
+- Logging infrastructure
+- Builder pattern for configuration
 
 ---
 
 ## Installation
 
-To integrate **BlendBerry SDK** into your Flutter app, follow these steps:
-
-### 1. Add Dependency in `pubspec.yaml`
+Add to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
   blendberry_flutter_sdk:
     git:
       url: git://github.com/blendberry/blendberry-flutter-sdk.git
-      ref: main # or a specific branch/tag
+      ref: main
 ```
 
-### 2. Install Dependencies
-
-Run the following command to install the SDK:
+Then run:
 
 ```bash
 flutter pub get
@@ -81,52 +111,268 @@ flutter pub get
 
 ---
 
-## Usage
+## Quick Start
 
-Here’s how you can use the BlendBerry SDK to fetch and use configurations in your Flutter app.
-
-### 1. Initialize the Remote Config
-
-Before using the configurations, you need to load them:
+### 1. Implement Your Backend Service
 
 ```dart
-final configMediator = RemoteConfigMediatorImpl();
-await configMediator.loadConfigs(Environment.staging.value); // Specify the environment (e.g., 'staging')
+class MyBackendService implements RemoteConfigService {
+  @override
+  Future<ConfigData?> fetchConfig(String env, [String? version]) async {
+    // Your implementation - REST, GraphQL, gRPC, etc.
+    final response = await http.get('https://api.example.com/config/$env');
+    return MyConfigData.fromJson(jsonDecode(response.body));
+  }
+
+  @override
+  Future<SyncResult> checkForUpdates(
+    ConfigMetadata local,
+    String env, [
+    String? version,
+  ]) async {
+    // Your sync logic - ETag, version, timestamp, etc.
+    final response = await http.head('https://api.example.com/config/$env');
+    final remoteETag = response.headers['etag'];
+    return remoteETag == local.syncIdentifier
+        ? SyncResult.upToDate
+        : SyncResult.needsUpdate;
+  }
+}
 ```
 
-This will either fetch the configurations from the backend or use the local cached version if it’s up-to-date.
-
-### 2. Dispatch Configurations
-
-Once the configurations are loaded, you can dispatch them using a mapper:
+### 2. Implement Your Config Data
 
 ```dart
-final themeConfig = configMediator.dispatch(CustomMapper());
-print('Should use dark theme: ${themeConfig.useDarkTheme}');
+class MyConfigData implements ConfigData {
+  final Map<String, dynamic> data;
+  final String version;
+  final String etag;
+
+  MyConfigData(this.data, this.version, this.etag);
+
+  @override
+  Map<String, dynamic> extractConfigs() => data;
+
+  @override
+  ConfigMetadata? extractMetadata() => MyConfigMetadata(version, etag);
+}
+
+class MyConfigMetadata implements ConfigMetadata {
+  final String version;
+  final String etag;
+
+  MyConfigMetadata(this.version, this.etag);
+
+  @override
+  String get syncIdentifier => '$version-$etag';
+}
 ```
 
-### 3. Error Handling
-
-Make sure to handle connection errors properly as this package only focuses on remote configurations.
+### 3. Implement Your Local Repository
 
 ```dart
-try {
-  await configMediator.loadConfigs(Environment.staging.value);
-} catch (e) {
-  print('Error loading configurations: $e');
+class MyLocalRepository implements LocalConfigRepository {
+  final SharedPreferences _prefs;
+
+  MyLocalRepository(this._prefs);
+
+  @override
+  bool hasData() => _prefs.containsKey('config');
+
+  @override
+  ConfigMetadata? getMetadata() {
+    final json = _prefs.getString('config_metadata');
+    return json != null ? MyConfigMetadata.fromJson(jsonDecode(json)) : null;
+  }
+
+  @override
+  Map<String, dynamic> getConfigs() {
+    final json = _prefs.getString('config');
+    return json != null ? jsonDecode(json) : {};
+  }
+
+  @override
+  Future<void> saveConfig(ConfigData config) async {
+    if (config is MyConfigData) {
+      await _prefs.setString('config', jsonEncode(config.extractConfigs()));
+      await _prefs.setString('config_metadata', jsonEncode(config.extractMetadata()?.toJson()));
+    }
+  }
+
+  @override
+  Future<void> clearCache() async {
+    await _prefs.remove('config');
+    await _prefs.remove('config_metadata');
+  }
+}
+```
+
+### 4. Create Your Mapper
+
+```dart
+class ThemeConfigMapper implements RemoteConfigMapper<ThemeConfig> {
+  @override
+  ThemeConfig map(Map<String, dynamic> map) {
+    return ThemeConfig(
+      useDarkTheme: map['useDarkTheme'] ?? false,
+      primaryColor: Color(map['primaryColor'] ?? 0xFF000000),
+    );
+  }
+}
+```
+
+### 5. Use the SDK
+
+```dart
+// Using builder pattern (recommended)
+final mediator = RemoteConfigBuilder()
+    .withService(MyBackendService())
+    .withRepository(MyLocalRepository(await SharedPreferences.getInstance()))
+    .withLoadMode(LoadMode.hybrid)
+    .enableLogging(true)
+    .build();
+
+// Load configurations
+await mediator.loadConfigs('production');
+
+// Use configurations
+final themeConfig = mediator.dispatch(ThemeConfigMapper());
+if (themeConfig.useDarkTheme) {
+  // Apply dark theme
 }
 ```
 
 ---
 
-## Example App
+## Core Concepts
 
-A working example is available in the `/example` directory.  
-This is a minimal Flutter application that demonstrates how to implement:
-It serves two main purposes:
+### Load Modes
 
-1. **Real-World Integration Test** – To validate that the SDK works correctly within a Flutter environment.
-2. **Usage Guide for Developers** – To provide a working example of how to integrate and use the SDK in their own apps.
+- **`LoadMode.hybrid`** (default): Check local cache, sync with remote if needed
+- **`LoadMode.localOnly`**: Only use local cache, never fetch remote
+- **`LoadMode.remoteOnly`**: Always fetch from remote, ignore local cache
+
+### Sync Strategies
+
+The SDK supports different sync mechanisms:
+
+- **Version-based**: Compare version strings
+- **ETag-based**: Use HTTP ETags
+- **Timestamp-based**: Compare last modification dates
+- **Hash-based**: Compare content hashes
+- **Custom**: Implement your own `SyncStrategy`
+
+### Error Handling
+
+The SDK throws specific exceptions:
+
+- `ConfigNotFoundException`: Configuration not found
+- `ConfigSyncException`: Sync check failed
+- `ConfigDataException`: Invalid or malformed data
+
+Always wrap `loadConfigs()` in try-catch:
+
+```dart
+try {
+  await mediator.loadConfigs('production');
+} on ConfigNotFoundException {
+  // Handle not found
+} on ConfigSyncException {
+  // Handle sync error
+} on ConfigDataException {
+  // Handle data error
+}
+```
+
+---
+
+## Implementing Your Backend
+
+### REST API Example
+
+See `example/lib/impl/service.dart` for a complete REST implementation example.
+
+### GraphQL Example
+
+```dart
+class GraphQLConfigService implements RemoteConfigService {
+  final GraphQLClient _client;
+
+  GraphQLConfigService(this._client);
+
+  @override
+  Future<ConfigData?> fetchConfig(String env, [String? version]) async {
+    final query = '''
+      query GetConfig(\$env: String!, \$version: String) {
+        config(env: \$env, version: \$version) {
+          data
+          version
+          etag
+        }
+      }
+    ''';
+    
+    final result = await _client.query(QueryOptions(
+      document: gql(query),
+      variables: {'env': env, 'version': version},
+    ));
+    
+    if (result.hasException) return null;
+    return GraphQLConfigData.fromJson(result.data!['config']);
+  }
+
+  @override
+  Future<SyncResult> checkForUpdates(
+    ConfigMetadata local,
+    String env, [
+    String? version,
+  ]) async {
+    // Implement GraphQL sync check
+    // ...
+  }
+}
+```
+
+### Firebase Remote Config Example
+
+```dart
+class FirebaseConfigService implements RemoteConfigService {
+  final FirebaseRemoteConfig _remoteConfig;
+
+  FirebaseConfigService(this._remoteConfig);
+
+  @override
+  Future<ConfigData?> fetchConfig(String env, [String? version]) async {
+    await _remoteConfig.fetchAndActivate();
+    final data = _remoteConfig.getAll();
+    return FirebaseConfigData(data, _remoteConfig.lastFetchTime);
+  }
+
+  @override
+  Future<SyncResult> checkForUpdates(
+    ConfigMetadata local,
+    String env, [
+    String? version,
+  ]) async {
+    final lastFetch = _remoteConfig.lastFetchTime;
+    return lastFetch.isAfter(local.lastModified)
+        ? SyncResult.needsUpdate
+        : SyncResult.upToDate;
+  }
+}
+```
+
+---
+
+## Examples
+
+A complete working example is available in the `/example` directory demonstrating:
+
+- REST API implementation
+- Local storage with SharedPreferences
+- Custom mappers
+- Error handling
+- Builder pattern usage
 
 To run the example:
 
@@ -136,70 +382,116 @@ flutter pub get
 flutter run
 ```
 
-> ℹ️ Dependencies such as `shared_preferences` used in `/example` are **not required** by the SDK itself. This ensures the core package remains lightweight and platform-agnostic.
-
 ---
 
 ## API Reference
 
-- **`RemoteConfigService`**: Interface to communicate with the backend for fetching configurations.
-    - **`fetchConfig(String env, String? version)`**: Fetches the configuration based on environment and optional version.
-    - **`lookupRemotely(String env, String version, DateTime lastModDate)`**: Checks if the remote configuration is up-to-date based on the last modification date.
+### RemoteConfigService
 
-- **`RemoteConfigMediator`**: Manages the configuration fetching logic and dispatching configurations to the app.
-    - **`loadConfigs(String env, [String? version])`**: Loads the configuration either from the local cache or remotely.
-    - **`dispatch<T extends RemoteConfig>(Mapper<T> mapper)`**: Dispatches the configuration using a specified mapper.
+Abstract interface for fetching remote configurations.
+
+```dart
+abstract interface class RemoteConfigService {
+  Future<ConfigData?> fetchConfig(String env, [String? version]);
+  Future<SyncResult> checkForUpdates(ConfigMetadata local, String env, [String? version]);
+}
+```
+
+### ConfigData
+
+Abstract interface for configuration data.
+
+```dart
+abstract interface class ConfigData {
+  Map<String, dynamic> extractConfigs();
+  ConfigMetadata? extractMetadata();
+}
+```
+
+### ConfigMetadata
+
+Abstract interface for sync metadata.
+
+```dart
+abstract interface class ConfigMetadata {
+  String get syncIdentifier;
+}
+```
+
+### LocalConfigRepository
+
+Abstract interface for local storage.
+
+```dart
+abstract interface class LocalConfigRepository {
+  bool hasData();
+  ConfigMetadata? getMetadata();
+  Map<String, dynamic> getConfigs();
+  Future<void> saveConfig(ConfigData config);
+  Future<void> clearCache();
+}
+```
+
+### RemoteConfigMediator
+
+Main orchestrator for configuration management.
+
+```dart
+class RemoteConfigMediator {
+  RemoteConfigMediator(
+    RemoteConfigService remoteService,
+    LocalConfigRepository localRepository, {
+    SyncStrategy? syncStrategy,
+    LoadMode loadMode = LoadMode.hybrid,
+    ConfigLogger? logger,
+  });
+
+  Future<void> loadConfigs(String env, [String? version]);
+  T dispatch<T extends RemoteConfig>(RemoteConfigMapper<T> mapper);
+}
+```
+
+### RemoteConfigBuilder
+
+Fluent builder for creating mediators.
+
+```dart
+final mediator = RemoteConfigBuilder()
+    .withService(MyService())
+    .withRepository(MyRepository())
+    .withSyncStrategy(MySyncStrategy())
+    .withLoadMode(LoadMode.hybrid)
+    .enableLogging(true)
+    .build();
+```
 
 ---
 
 ## Contributing
 
-We welcome contributions from the community! If you want to contribute to the **BlendBerry SDK for Flutter**, please follow these steps:
+We welcome contributions! Please see our contributing guidelines.
 
-### 1. Fork the Repository
-
-Click the **Fork** button in the top-right corner of this page to create a copy of the repository under your own GitHub account.
-
-### 2. Clone Your Fork
-
-Clone the repository to your local machine:
-
-```bash
-git clone https://github.com/blendberry/blendberry-flutter-sdk.git
-```
-
-### 3. Create a New Branch
-
-Create a new branch to work on your changes:
-
-```bash
-git checkout -b feature/your-feature
-```
-
-### 4. Commit Your Changes
-
-Commit your changes with a clear message:
-
-```bash
-git commit -am 'Add your feature'
-```
-
-### 5. Push Your Changes
-
-Push your changes to your fork:
-
-```bash
-git push origin feature/your-feature
-```
-
-### 6. Open a Pull Request
-
-Open a pull request on the original repository with a description of your changes.
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ---
 
 ## License
 
-The **BlendBerry SDK for Flutter** is licensed under the [MIT License](LICENSE).
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
+
+## Why This Architecture?
+
+This SDK is designed to be **completely backend-agnostic**. Unlike other remote config SDKs that assume a specific backend format, this SDK lets you:
+
+- Use any backend (REST, GraphQL, gRPC, Firebase, AWS, etc.)
+- Define your own data format
+- Implement your own sync strategy
+- Choose your own storage mechanism
+
+The SDK only provides the **orchestration logic** - you provide the **implementation details** that match your backend.

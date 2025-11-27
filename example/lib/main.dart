@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SharedPrefsManager.init();
-  final mediator = RemoteConfigMediatorImpl();
+  final mediator = RemoteConfigMediatorImpl.instance;
   await mediator.loadConfigs(Environment.staging.value);
   final customRemoteConfig = mediator.dispatch(CustomMapper());
   if (kDebugMode) {
