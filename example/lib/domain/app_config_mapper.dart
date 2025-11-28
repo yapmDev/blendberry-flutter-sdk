@@ -4,7 +4,7 @@ import 'app_config.dart';
 /// Mapper that converts raw configuration data into AppConfig domain entity.
 ///
 /// This mapper implements the RemoteConfigMapper interface to transform
-/// the generic Map<String, dynamic> into a strongly-typed AppConfig object.
+/// the generic `Map<String, dynamic>` into a strongly-typed AppConfig object.
 class AppConfigMapper implements RemoteConfigMapper<AppConfig> {
   @override
   AppConfig map(Map<String, dynamic> map) {

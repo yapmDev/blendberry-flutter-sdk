@@ -1,0 +1,4 @@
+# Exclude IDE files from publication
+.idea/
+*.iml
+

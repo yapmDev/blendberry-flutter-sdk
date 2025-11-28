@@ -52,16 +52,16 @@ The SDK follows a clean architecture with complete abstraction:
 └──────────────┬──────────────────────────┘
                │
 ┌──────────────▼──────────────────────────┐
-│     Presentation Layer                   │
+│     Presentation Layer                  │
 │  - RemoteConfigMediator (orchestrator)  │
 │  - RemoteConfigBuilder (configuration)  │
 └──────────────┬──────────────────────────┘
                │
 ┌──────────────▼──────────────────────────┐
 │     Domain Layer                        │
-│  - RemoteConfigService (abstract)      │
-│  - SyncStrategy (abstract, optional)   │
-│  - RemoteConfigMapper (your mappers)   │
+│  - RemoteConfigService (abstract)       │
+│  - SyncStrategy (abstract, optional)    │
+│  - RemoteConfigMapper (your mappers)    │
 └──────────────┬──────────────────────────┘
                │
 ┌──────────────▼──────────────────────────┐
@@ -299,7 +299,7 @@ try {
 
 ### REST API Example
 
-See `example/lib/impl/service.dart` for a complete REST implementation example.
+See `example/lib/services/example_config_service.dart` for a complete REST implementation example.
 
 ### GraphQL Example
 
